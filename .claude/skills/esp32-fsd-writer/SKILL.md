@@ -594,57 +594,41 @@ After generating or updating an FSD, the skill must verify:
 
 Report any checklist failures to the user before finalizing.
 
-## 14. WiFi Test Specification
+## 14. Standard Test Libraries
 
-When the ESP32 project uses WiFi, include standard WiFi test cases in the FSD.
-Tests are conditionally included based on detected project features.
+Include standard test cases in the FSD based on detected project features.
+Tests are conditionally included — scan the FSD and source code for detection
+patterns, then pull in the matching test specs from `references/`.
 
 ### Feature Detection
 
-Search the FSD document and/or source code for these indicators:
+| Feature | Detection Patterns | Test Spec | Include |
+|---------|-------------------|-----------|---------|
+| **WiFi STA** | `WiFi.begin`, `esp_wifi_connect`, "STA mode" | `wifi-test-spec.md` | WIFI-001–007, EC-110–115 |
+| **WiFi AP** | `WiFi.softAP`, "captive portal", "AP mode" | `wifi-test-spec.md` | AP-001–006, TC-300 |
+| **MQTT** | `PubSubClient`, `esp_mqtt`, "MQTT broker" | `wifi-test-spec.md` | WIFI-006, EC-101, EC-118 |
+| **BLE** | `NimBLE`, `esp_ble`, `BLEDevice`, "BLE", "GATT" | `ble-test-spec.md` | BLE-001–032, TC-BLE-100–103 |
+| **BLE NUS** | `NUS`, `6E400001`, "Nordic UART" | `ble-test-spec.md` | BLE-020–023, TC-BLE-101 |
+| **OTA** | `esp_ota`, `httpUpdate`, "firmware update", "OTA" | `ota-test-spec.md` | OTA-001–013, TC-OTA-100–102 |
+| **USB HID** | `tinyusb`, `tusb_`, "HID", "keyboard", "USB device" | `usb-hid-test-spec.md` | HID-001–022, TC-HID-100–103 |
+| **NVS** | `Preferences`, `nvs_`, "NVS", "stored credentials" | `nvs-test-spec.md` | NVS-001–024, TC-NVS-100–103 |
+| **Watchdog** | `esp_task_wdt`, `TWDT`, "watchdog" | `wifi-test-spec.md` | EC-116–120 |
+| **Ethernet** | `W5500`, `ETH.begin`, "dual network" | `wifi-test-spec.md` | TEST-001–005, EC-100 |
 
-| Feature | Detection Patterns | If Found, Include |
-|---------|-------------------|-------------------|
-| **WiFi STA** | `WiFi.begin`, `esp_wifi_connect`, "WiFi station", "STA mode" | WIFI-001 to WIFI-007 |
-| **WiFi AP** | `WiFi.softAP`, `esp_wifi_set_mode(WIFI_MODE_AP)`, "captive portal", "AP mode" | AP-001 to AP-006, TC-300 |
-| **MQTT** | `PubSubClient`, `esp_mqtt`, `mosquitto`, "MQTT broker", "publish", "subscribe" | WIFI-006, EC-101, EC-118 |
-| **OTA** | `ArduinoOTA`, `esp_ota`, `httpUpdate`, "firmware update", "OTA" | TC-301, EC-114, EC-120 |
-| **Ethernet** | `W5500`, `ETH.begin`, `esp_eth`, "dual network", "Ethernet" | TEST-001 to TEST-005, EC-100 |
-| **Watchdog** | `esp_task_wdt`, `TWDT`, "watchdog", "health check" | EC-116 to EC-120 |
-| **NVS Config** | `Preferences`, `nvs_`, "NVS", "stored credentials" | WIFI-002, EC-112 |
+### Workflow
 
-### Test Categories
+1. Scan the FSD requirements and source code for detection patterns above
+2. For each detected feature, read the corresponding `references/*.md` file
+3. Copy relevant requirements, functional tests, and edge cases into the FSD
+4. Update project-specific placeholders (SSIDs, IPs, timeouts, etc.)
+5. Add all included tests to the traceability matrix (Section 8.4)
 
-| Category | Test IDs | Required Feature |
-|----------|----------|------------------|
-| WiFi STA Requirements | WIFI-001 to WIFI-005 | WiFi STA (always if WiFi used) |
-| MQTT-specific | WIFI-006, WIFI-007 | MQTT over WiFi |
-| AP Requirements | AP-001 to AP-006 | Captive portal |
-| Test Mode | TEST-001 to TEST-005 | Ethernet + WiFi |
-| Captive Portal Test | TC-300 | AP mode |
-| OTA Test | TC-301 | OTA updates |
-| Network Disconnect | EC-100, EC-101 | Ethernet or MQTT |
-| Signal/Congestion | EC-110, EC-111 | Any WiFi |
-| Credential Change | EC-112 | NVS credentials |
-| AP+STA Concurrent | EC-113 | AP fallback mode |
-| OTA Resilience | EC-114 | OTA updates |
-| DHCP | EC-115 | Any WiFi |
-| Watchdog Tests | EC-116 to EC-120 | Watchdog enabled |
+### Test Spec References
 
-### Customization Points
-
-Update these project-specific values when copying tests:
-
-| Placeholder | Example | Where Used |
-|-------------|---------|------------|
-| `PROJECT-{MAC_LAST_4}` | `SENSOR-A1B2` | AP SSID format |
-| `192.168.1.1` | `192.168.4.1` | AP gateway IP |
-| `192.168.1.50:1883` | Your broker | MQTT broker address |
-| `project/#` | `sensor/data/#` | MQTT topic prefix |
-| `5 seconds` | `3 seconds` | CONFIG button hold time |
-| `60s` | `30s` | Watchdog timeout |
-
-### WiFi Test Reference
-
-Complete test specifications with step-by-step procedures:
-See [references/wifi-test-spec.md](references/wifi-test-spec.md)
+| File | Coverage |
+|------|----------|
+| [references/wifi-test-spec.md](references/wifi-test-spec.md) | WiFi STA/AP, MQTT, captive portal, OTA via WiFi, watchdog, ethernet |
+| [references/ble-test-spec.md](references/ble-test-spec.md) | BLE advertising, GATT, NUS, pairing, coexistence |
+| [references/ota-test-spec.md](references/ota-test-spec.md) | OTA download, rollback, integrity, power loss recovery |
+| [references/usb-hid-test-spec.md](references/usb-hid-test-spec.md) | USB enumeration, keyboard layouts, latency, stuck key prevention |
+| [references/nvs-test-spec.md](references/nvs-test-spec.md) | Config persistence, factory reset, corruption recovery, credentials |
