@@ -1,11 +1,27 @@
 ---
-name: wifi-tests
-description: Include standard WiFi test cases in ESP32 Functional Specification Documents (FSDs). Use when creating or updating any ESP32 project FSD that involves WiFi connectivity, captive portal, MQTT over WiFi, or OTA updates. Triggers on "ESP32 FSD", "functional specification", "WiFi test cases", or when writing test requirements for ESP32 WiFi features.
+name: workbench-fsd-writer
+description: >
+  ESP32-specific FSD generation and update. Extends the generic fsd-writer
+  with ESP32 WiFi test cases, workbench integration chapters, and embedded
+  project context. Use when creating or updating an FSD for an ESP32 project.
+  Triggers on "ESP32 FSD", "functional specification", "WiFi test cases",
+  "write FSD" (when in an ESP32 project).
+  Works alongside the generic `fsd-writer` skill — use that for the FSD
+  structure and engine, this skill adds ESP32-specific content.
 ---
 
-# ESP32 WiFi Test Specification
+# ESP32 FSD Writer
 
-This skill provides a standard WiFi test suite for ESP32 projects. Tests are conditionally included based on detected project features.
+Extends the generic `fsd-writer` skill with ESP32-specific content for
+Functional Specification Documents. When writing an FSD for an ESP32 project,
+use the generic `fsd-writer` for the overall structure, then apply this skill
+to add WiFi test cases, workbench test procedures, and embedded-specific
+sections.
+
+## WiFi Test Specification
+
+Standard WiFi test suite for ESP32 projects. Tests are conditionally included
+based on detected project features.
 
 ## Feature Detection Workflow
 
