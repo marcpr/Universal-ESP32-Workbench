@@ -17,7 +17,7 @@ handling, strategic log messages), then write the operational, testing, and
 appendix chapters into the FSD.
 
 **Prerequisite:** The project must already have an FSD with at least a System
-Overview and Functional Requirements section. Use the `fsd-writer` skill first
+Overview and Functional Requirements section. Use the `esp32-fsd-writer` skill first
 to generate one from a rough description if needed.
 
 The workbench provides the **test infrastructure**. This skill adds both the
@@ -27,7 +27,7 @@ troubleshooting).
 
 ## FSD Document Structure
 
-This skill operates on FSDs produced by the `fsd-writer` skill, which uses
+This skill operates on FSDs produced by the `esp32-fsd-writer` skill, which uses
 this canonical numbered structure:
 
 ```
@@ -44,7 +44,7 @@ this canonical numbered structure:
 ## 10. Appendix                          ← REPLACED by this skill with logging strategy + constants
 ```
 
-**Sections 1–6** are written by the `fsd-writer` skill and contain system
+**Sections 1–6** are written by the `esp32-fsd-writer` skill and contain system
 overview, architecture, phases, requirements, risks, and interfaces. This skill
 reads them to extract features, phases, and constants but does not modify them.
 
@@ -217,7 +217,7 @@ Find the project's FSD path and firmware root directory. Confirm:
 
 ### Step 2: Parse FSD — extract features and build checklist
 
-Read the entire FSD (produced by the `fsd-writer` skill). Extract features from
+Read the entire FSD (produced by the `esp32-fsd-writer` skill). Extract features from
 **Section 4 (Functional Requirements)**, phases from **Section 3 (Implementation
 Phases)**, interfaces from **Section 6 (Interface Specifications)**, and
 architecture details from **Section 2 (System Architecture)**.
