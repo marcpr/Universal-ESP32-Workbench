@@ -25,6 +25,11 @@ try:
 except ImportError:
     ble_controller = None
 
+try:
+    import digilent.api as digilent_api
+except ImportError:
+    digilent_api = None
+
 PORT = 8080
 CONFIG_FILE = os.environ.get("RFC2217_CONFIG", "/etc/rfc2217/slots.json")
 PROXY_EXE = "/usr/local/bin/plain_rfc2217_server.py"
@@ -1083,6 +1088,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_firmware_list()
         elif path == "/api/ble/status":
             self._handle_ble_status()
+        elif path.startswith("/api/digilent"):
+            if digilent_api:
+                digilent_api.handle_get(self, path)
+            else:
+                self._send_json({"ok": False, "error": {"code": "DIGILENT_NOT_AVAILABLE", "message": "Digilent module not installed"}}, 503)
         elif path.startswith("/firmware/"):
             self._handle_firmware_download(path)
         elif path in ("/", "/index.html"):
@@ -1143,6 +1153,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_ble_disconnect()
         elif path == "/api/ble/write":
             self._handle_ble_write()
+        elif path.startswith("/api/digilent"):
+            if digilent_api:
+                digilent_api.handle_post(self, path)
+            else:
+                self._send_json({"ok": False, "error": {"code": "DIGILENT_NOT_AVAILABLE", "message": "Digilent module not installed"}}, 503)
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -2571,6 +2586,10 @@ def main():
     # Scan for devices already plugged in at boot
     scan_existing_devices()
 
+    # Initialise Digilent extension (optional, no-op if module absent)
+    if digilent_api:
+        digilent_api.init()
+
     # Start UDP log receiver and discovery beacon
     start_udp_log()
     start_beacon()
@@ -2595,6 +2614,8 @@ def main():
         wifi_controller.shutdown()
         if ble_controller:
             ble_controller.shutdown()
+        if digilent_api:
+            digilent_api.shutdown()
         # Stop all running proxies
         for slot in slots.values():
             if slot["running"] and slot["pid"]:

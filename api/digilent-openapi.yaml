@@ -1,0 +1,550 @@
+openapi: 3.1.0
+info:
+  title: Universal ESP32 Workbench Digilent API
+  version: 1.0.0
+  description: >-
+    HTTP-API für die Digilent/WaveForms-Erweiterung der Universal-ESP32-Workbench.
+servers:
+  - url: http://esp32-workbench.local:8080
+    description: Standardadresse im lokalen Netz
+paths:
+  /api/digilent/status:
+    get:
+      summary: Status des Digilent-Geräts abfragen
+      operationId: getDigilentStatus
+      responses:
+        '200':
+          description: Status erfolgreich gelesen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DigilentStatusResponse'
+  /api/digilent/device/open:
+    post:
+      summary: Gerät öffnen
+      operationId: openDigilentDevice
+      responses:
+        '200':
+          description: Gerät geöffnet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /api/digilent/device/close:
+    post:
+      summary: Gerät schließen
+      operationId: closeDigilentDevice
+      responses:
+        '200':
+          description: Gerät geschlossen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /api/digilent/scope/capture:
+    post:
+      summary: Scope-Capture ausführen
+      operationId: captureScope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScopeCaptureRequest'
+      responses:
+        '200':
+          description: Scope-Capture erfolgreich
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScopeCaptureResponse'
+        '400':
+          description: Ungültige Anforderung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Gerät belegt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/digilent/scope/measure:
+    post:
+      summary: Schnelle Scope-Kennwertmessung ohne Rohdaten
+      operationId: measureScope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScopeCaptureRequest'
+      responses:
+        '200':
+          description: Messung erfolgreich
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScopeCaptureResponse'
+  /api/digilent/logic/capture:
+    post:
+      summary: Logic-Capture ausführen
+      operationId: captureLogic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogicCaptureRequest'
+      responses:
+        '200':
+          description: Logic-Capture erfolgreich
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogicCaptureResponse'
+  /api/digilent/wavegen/set:
+    post:
+      summary: Waveform Generator konfigurieren
+      operationId: setWavegen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WavegenRequest'
+      responses:
+        '200':
+          description: Wavegen erfolgreich konfiguriert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /api/digilent/wavegen/stop:
+    post:
+      summary: Waveform Generator stoppen
+      operationId: stopWavegen
+      responses:
+        '200':
+          description: Wavegen gestoppt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /api/digilent/supplies/set:
+    post:
+      summary: Hilfsspannungen setzen
+      operationId: setSupplies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuppliesRequest'
+      responses:
+        '200':
+          description: Supplies erfolgreich gesetzt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '403':
+          description: Funktion nicht freigegeben
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/digilent/static-io/set:
+    post:
+      summary: Static I/O konfigurieren
+      operationId: setStaticIo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaticIoRequest'
+      responses:
+        '200':
+          description: Static I/O erfolgreich gesetzt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /api/digilent/measure/basic:
+    post:
+      summary: High-Level-Messaktion ausführen
+      operationId: runBasicMeasurement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BasicMeasureRequest'
+      responses:
+        '200':
+          description: Aktion erfolgreich ausgeführt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicMeasureResponse'
+  /api/digilent/session/reset:
+    post:
+      summary: Digilent-Session zurücksetzen
+      operationId: resetDigilentSession
+      responses:
+        '200':
+          description: Session zurückgesetzt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+components:
+  schemas:
+    GenericResponse:
+      type: object
+      required: [ok, ts, request_id]
+      properties:
+        ok:
+          type: boolean
+        ts:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [ok, ts, request_id, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        ts:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            detail:
+              type: object
+              additionalProperties: true
+    DigilentStatusResponse:
+      type: object
+      required: [ok, device_present, device_open, state, capabilities]
+      properties:
+        ok:
+          type: boolean
+        device_present:
+          type: boolean
+        device_open:
+          type: boolean
+        device_name:
+          type: string
+        state:
+          type: string
+          enum: [absent, idle, busy, recovering, error]
+        temperature_c:
+          type: number
+        capabilities:
+          type: object
+          additionalProperties:
+            type: boolean
+    TriggerConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        source:
+          type: string
+        edge:
+          type: string
+          enum: [rising, falling, either]
+        channel:
+          type: integer
+        level_v:
+          type: number
+        timeout_ms:
+          type: integer
+          minimum: 1
+    ScopeCaptureRequest:
+      type: object
+      required: [channels, range_v, sample_rate_hz, duration_ms]
+      properties:
+        channels:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            enum: [1, 2]
+        range_v:
+          type: number
+          exclusiveMinimum: 0
+        offset_v:
+          type: number
+          default: 0
+        sample_rate_hz:
+          type: integer
+          minimum: 1
+        duration_ms:
+          type: integer
+          minimum: 1
+        trigger:
+          $ref: '#/components/schemas/TriggerConfig'
+        return_waveform:
+          type: boolean
+          default: false
+        max_points:
+          type: integer
+          minimum: 1
+          default: 5000
+    ScopeMetrics:
+      type: object
+      properties:
+        vmin:
+          type: number
+        vmax:
+          type: number
+        vpp:
+          type: number
+        vavg:
+          type: number
+        vrms:
+          type: number
+        freq_est_hz:
+          type: number
+        period_est_s:
+          type: number
+        duty_cycle_percent:
+          type: number
+        rise_time_s:
+          type: number
+        fall_time_s:
+          type: number
+    ScopeWaveformChannel:
+      type: object
+      required: [channel, y]
+      properties:
+        channel:
+          type: integer
+        y:
+          type: array
+          items:
+            type: number
+    ScopeWaveform:
+      type: object
+      required: [t_start_s, dt_s, unit_x, unit_y, channels]
+      properties:
+        t_start_s:
+          type: number
+        dt_s:
+          type: number
+        unit_x:
+          type: string
+        unit_y:
+          type: string
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopeWaveformChannel'
+    ScopeCaptureResponse:
+      type: object
+      required: [ok, device, metrics]
+      properties:
+        ok:
+          type: boolean
+        ts:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+        device:
+          type: string
+        metrics:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ScopeMetrics'
+        waveform:
+          $ref: '#/components/schemas/ScopeWaveform'
+        warnings:
+          type: array
+          items:
+            type: string
+    LogicCaptureRequest:
+      type: object
+      required: [channels, sample_rate_hz, samples]
+      properties:
+        channels:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+        sample_rate_hz:
+          type: integer
+          minimum: 1
+        samples:
+          type: integer
+          minimum: 1
+        trigger:
+          $ref: '#/components/schemas/TriggerConfig'
+        return_samples:
+          type: boolean
+          default: false
+    LogicMetrics:
+      type: object
+      properties:
+        high_ratio:
+          type: number
+        low_ratio:
+          type: number
+        edge_count:
+          type: integer
+        freq_est_hz:
+          type: number
+        period_est_s:
+          type: number
+        duty_cycle_percent:
+          type: number
+    LogicSamples:
+      type: object
+      properties:
+        sample_rate_hz:
+          type: integer
+        channels:
+          type: array
+          items:
+            type: integer
+        packed:
+          type: boolean
+        samples:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              enum: [0, 1]
+    LogicCaptureResponse:
+      type: object
+      required: [ok, device, metrics]
+      properties:
+        ok:
+          type: boolean
+        ts:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+        device:
+          type: string
+        metrics:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/LogicMetrics'
+        logic_samples:
+          $ref: '#/components/schemas/LogicSamples'
+    WavegenRequest:
+      type: object
+      required: [channel, waveform, frequency_hz, amplitude_v, offset_v, enable]
+      properties:
+        channel:
+          type: integer
+          enum: [1, 2]
+        waveform:
+          type: string
+          enum: [sine, square, triangle, dc]
+        frequency_hz:
+          type: number
+          minimum: 0
+        amplitude_v:
+          type: number
+        offset_v:
+          type: number
+        symmetry_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+        enable:
+          type: boolean
+    SuppliesRequest:
+      type: object
+      properties:
+        vplus_v:
+          type: number
+        vminus_v:
+          type: number
+        enable_vplus:
+          type: boolean
+        enable_vminus:
+          type: boolean
+        confirm_unsafe:
+          type: boolean
+          default: false
+    StaticIoPin:
+      type: object
+      required: [index, mode]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          maximum: 15
+        mode:
+          type: string
+          enum: [input, output]
+        value:
+          type: integer
+          enum: [0, 1]
+    StaticIoRequest:
+      type: object
+      required: [pins]
+      properties:
+        pins:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaticIoPin'
+    BasicMeasureRequest:
+      type: object
+      required: [action, params]
+      properties:
+        action:
+          type: string
+          enum: [measure_esp32_pwm, measure_voltage_level, detect_logic_activity]
+        params:
+          type: object
+          additionalProperties: true
+    BasicMeasureResponse:
+      type: object
+      required: [ok, action]
+      properties:
+        ok:
+          type: boolean
+        ts:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+        action:
+          type: string
+        within_tolerance:
+          type: boolean
+        result:
+          type: object
+          additionalProperties: true
+        warnings:
+          type: array
+          items:
+            type: string
