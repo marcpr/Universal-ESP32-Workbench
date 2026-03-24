@@ -111,6 +111,20 @@ A browser-based dashboard at **http://pi-ip:8080** showing:
 - Test progress panel
 - Human interaction modal
 
+### 9. Digilent Instrument (optional)
+
+Attach a **Digilent Analog Discovery 2/3** or compatible WaveForms device to the Pi's USB port and the workbench gains a full mixed-signal test instrument, accessible over the same HTTP API:
+
+- **Oscilloscope** — two-channel analog capture, configurable trigger, automatic waveform metrics (Vmin, Vmax, Vpp, Vavg, Vrms, frequency, duty cycle, rise/fall time)
+- **Logic analyzer** — up to 16 digital channels, threshold trigger, edge counting and frequency estimation
+- **Waveform generator** — sine, square, triangle, DC on two independent channels with safety-limited amplitude
+- **Static I/O** — drive or read individual digital pins
+- **Power supplies** — positive/negative auxiliary voltage rails (disabled by default; require explicit config opt-in)
+
+All instrument access is exclusive — one measurement at a time, concurrent requests get a `409 Busy` response.
+
+**Prerequisite:** Install WaveForms from [digilent.com](https://digilent.com/reference/software/waveforms/waveforms-3/start). The portal imports `libdwf.so` automatically; if the library is absent the rest of the workbench is unaffected.
+
 ---
 
 ## Hardware Setup
@@ -123,6 +137,7 @@ A browser-based dashboard at **http://pi-ip:8080** showing:
 | **USB Ethernet adapter** | Wired LAN on eth0 (wlan0 is reserved for WiFi testing) |
 | **USB hub** | Connect multiple ESP32 boards (if needed) |
 | **Jumper wires** (optional) | Pi GPIO → DUT GPIO for automated boot mode control |
+| **Digilent Analog Discovery 2/3** (optional) | Mixed-signal instrument — scope, logic analyzer, wavegen |
 
 ### Network Topology
 
@@ -190,6 +205,38 @@ sudo nano /etc/rfc2217/slots.json
 ```
 
 Restart after editing: `sudo systemctl restart rfc2217-portal`
+
+### Digilent Configuration (optional)
+
+If a WaveForms device is connected, create `/etc/rfc2217/digilent.json`:
+
+```json
+{
+  "enabled": true,
+  "auto_open": false,
+  "max_scope_points": 20000,
+  "max_logic_points": 100000,
+  "allow_raw_waveforms": true,
+  "allow_supplies": false,
+  "safe_limits": {
+    "max_scope_sample_rate_hz": 50000000,
+    "max_logic_sample_rate_hz": 100000000,
+    "max_wavegen_amplitude_v": 5.0,
+    "max_supply_plus_v": 5.0,
+    "min_supply_minus_v": -5.0
+  },
+  "labels": {
+    "scope_ch1": "DUT_SIG_A",
+    "logic_dio0": "UART_TX",
+    "logic_dio1": "UART_RX"
+  }
+}
+```
+
+Key settings:
+- `allow_supplies: false` — keep power supplies off until explicitly opted in
+- `auto_open: false` — open the device on first measurement request rather than at boot
+- `safe_limits` — server-enforced upper bounds; API requests exceeding these are rejected with `400`
 
 ---
 
@@ -363,6 +410,11 @@ curl -X POST http://esp32-workbench.local:8080/api/ble/disconnect
 | No UDP logs appearing | ESP32 not sending to correct IP/port | Verify firmware log host is `esp32-workbench.local:5555` |
 | Firmware download returns 404 | Wrong path or not uploaded | Check `curl .../api/firmware/list` |
 | GPIO pin has no effect | Wrong BCM pin number or not wired | Verify wiring; only BCM pins in the allowlist work |
+| `/api/digilent/status` returns `device_present: false` | Device not connected or libdwf not installed | Verify USB connection; install WaveForms from digilent.com |
+| Digilent returns `503 DIGILENT_NOT_AVAILABLE` | `libdwf.so` not found at portal start | Install WaveForms, then restart the portal service |
+| Scope capture times out | Trigger condition never met | Set `trigger.enabled: false` for free-running capture, or increase `trigger.timeout_ms` |
+| Concurrent request returns `409 DIGILENT_BUSY` | Previous measurement still in progress | Wait and retry; or call `POST /api/digilent/session/reset` if stuck |
+| Supplies endpoint returns `403 DIGILENT_NOT_ENABLED` | Supplies disabled in config | Set `allow_supplies: true` in `/etc/rfc2217/digilent.json` and restart |
 
 ---
 
@@ -431,6 +483,69 @@ curl -X POST http://esp32-workbench.local:8080/api/ble/disconnect
 | GET | `/api/ble/status` | Connection state (`idle` / `scanning` / `connected`) |
 | POST | `/api/ble/write` | Write hex bytes `{"characteristic", "data", "response?"}` |
 
+### Digilent Instrument
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/digilent/status` | Device presence, state, temperature, capabilities |
+| POST | `/api/digilent/device/open` | Open the WaveForms device |
+| POST | `/api/digilent/device/close` | Close the device |
+| POST | `/api/digilent/session/reset` | Force-close and reset after error |
+| POST | `/api/digilent/scope/capture` | Capture analog waveform with trigger `{"channels", "range_v", "sample_rate_hz", "duration_ms", "trigger?", "return_waveform?"}` |
+| POST | `/api/digilent/scope/measure` | Like capture but always suppresses raw waveform data |
+| POST | `/api/digilent/logic/capture` | Capture digital channels `{"channels", "sample_rate_hz", "samples", "trigger?", "return_samples?"}` |
+| POST | `/api/digilent/wavegen/set` | Configure waveform generator `{"channel", "waveform", "frequency_hz", "amplitude_v", "offset_v", "enable"}` |
+| POST | `/api/digilent/wavegen/stop` | Stop waveform generator `{"channel"}` |
+| POST | `/api/digilent/supplies/set` | Set power supply voltages `{"vplus_v", "vminus_v", "enable_vplus", "enable_vminus", "confirm_unsafe"}` |
+| POST | `/api/digilent/static-io/set` | Configure digital I/O pins `{"pins": [{"index", "mode", "value?"}]}` |
+| POST | `/api/digilent/measure/basic` | Agent-friendly high-level action `{"action", "params"}` |
+
+**High-level actions** for `measure/basic`:
+
+| Action | Description |
+|--------|-------------|
+| `measure_esp32_pwm` | Capture and validate PWM frequency/duty cycle against expected values |
+| `measure_voltage_level` | Measure DC/slow voltage and check against tolerance |
+| `detect_logic_activity` | Detect transitions on digital channels, report active channels |
+
+**Error codes** returned in `error.code`:
+
+| Code | HTTP | Meaning |
+|------|------|---------|
+| `DIGILENT_NOT_FOUND` | 503 | No device connected |
+| `DIGILENT_BUSY` | 409 | Concurrent access rejected |
+| `DIGILENT_CONFIG_INVALID` | 400 | Bad parameter (channel, range, etc.) |
+| `DIGILENT_RANGE_VIOLATION` | 400 | Value exceeds configured safe limit |
+| `DIGILENT_NOT_ENABLED` | 403 | Feature disabled in config (e.g. supplies) |
+| `DIGILENT_CAPTURE_TIMEOUT` | 504 | Acquisition did not complete |
+
+**curl examples:**
+
+```bash
+# Check status
+curl http://esp32-workbench.local:8080/api/digilent/status
+
+# Measure PWM on scope channel 1
+curl -X POST http://esp32-workbench.local:8080/api/digilent/measure/basic \
+  -H "Content-Type: application/json" \
+  -d '{"action":"measure_esp32_pwm","params":{"channel":1,"expected_freq_hz":1000,"tolerance_percent":5}}'
+
+# Scope capture — 1 MHz, 10 ms, rising edge trigger
+curl -X POST http://esp32-workbench.local:8080/api/digilent/scope/capture \
+  -H "Content-Type: application/json" \
+  -d '{"channels":[1],"range_v":5.0,"sample_rate_hz":1000000,"duration_ms":10,"trigger":{"enabled":true,"source":"ch1","edge":"rising","level_v":1.6}}'
+
+# Logic capture on DIO 0+1
+curl -X POST http://esp32-workbench.local:8080/api/digilent/logic/capture \
+  -H "Content-Type: application/json" \
+  -d '{"channels":[0,1],"sample_rate_hz":10000000,"samples":20000}'
+
+# Generate 1 kHz square wave on wavegen channel 1
+curl -X POST http://esp32-workbench.local:8080/api/digilent/wavegen/set \
+  -H "Content-Type: application/json" \
+  -d '{"channel":1,"waveform":"square","frequency_hz":1000,"amplitude_v":1.65,"offset_v":1.65,"symmetry_percent":50,"enable":true}'
+```
+
 ### Test / Other
 
 | Method | Endpoint | Description |
@@ -459,14 +574,37 @@ pi/
   scripts/                   udev and dnsmasq callback scripts
   udev/                      Hotplug rules
   systemd/                   Service unit file
+  digilent/                  Digilent/WaveForms instrument extension
+    dwf_adapter.py           ctypes wrapper around libdwf.so
+    device_manager.py        Exclusive session lifecycle and state machine
+    scope_service.py         Oscilloscope capture and metric computation
+    logic_service.py         Logic analyzer capture
+    wavegen_service.py       Waveform generator
+    supplies_service.py      Power supplies and static I/O
+    orchestration.py         High-level agent actions
+    api.py                   HTTP dispatch for /api/digilent/*
+    config.py                Configuration loader with safe-limit enforcement
+    models.py                Request/response dataclasses
+    errors.py                Typed error hierarchy
+    utils.py                 Metric calculation and downsampling
+  tests/
+    test_digilent_api.py     40 unit tests (mock-based, no hardware required)
 
 pytest/
-  esp32_workbench_driver.py      Python test driver (ESP32WorkbenchDriver class)
+  esp32_workbench_driver.py  Python test driver (ESP32WorkbenchDriver class)
   conftest.py                Fixtures and CLI options
   test_instrument.py         Self-tests for the instrument
+  test_digilent_remote.py    Digilent remote integration tests (WORKBENCH_HOST=...)
+
+api/
+  digilent-openapi.yaml      OpenAPI 3.1 schema for the Digilent API
 
 docs/
-  Universal-ESP32-Workbench-FSD.md  Full functional specification
+  Universal-ESP32-Workbench-FSD.md   Full functional specification
+  digilent-extension-spec.md         Digilent integration specification
+  digilent-integration-guide.md      Step-by-step integration guide
+  digilent-wiring-safety.md          Wiring rules and safety guidelines
+  digilent-roadmap.md                Implementation roadmap (Phases 1-5)
 ```
 
 ---
@@ -500,6 +638,7 @@ Restart Claude Code (or run `/clear`) for the skills to take effect.
 | `workbench-ble` | BLE, bluetooth, GATT, NUS | BLE scan, connect, GATT write |
 | `workbench-mqtt` | MQTT, broker, publish, subscribe | MQTT broker control |
 | `workbench-logging` | serial monitor, log, UDP log | Serial monitor, UDP debug logs |
+| `digilent-workbench` | scope, oscilloscope, logic analyzer, wavegen, PWM messen, digilent | Oscilloscope, logic analyzer, waveform generator, voltage/PWM measurements |
 
 ---
 
